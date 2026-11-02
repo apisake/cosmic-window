@@ -19,4 +19,4 @@ then visit http://localhost:8765.
 
 ## API key
 
-The app uses NASA's `DEMO_KEY`, which allows about 30 requests per hour. Get a free key at [api.nasa.gov](https://api.nasa.gov) and replace `DEMO_KEY` near the top of the script in `index.html`. Don't commit a personal key to a public repo.
+The app uses a free NASA API key (1,000 requests per hour), set near the top of the script in `index.html`. If you fork this project, get your own key at [api.nasa.gov](https://api.nasa.gov) and replace it there.
