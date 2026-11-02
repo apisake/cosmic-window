@@ -215,11 +215,15 @@
 
       const query = new URLSearchParams({ api_key: API_KEY, thumbs: "true", ...params });
 
-      // NASA's server sometimes fails randomly (error 500) — just try again, up to 4 times
+      // NASA's server sometimes fails randomly (error 500 or a dropped connection) — just try again, up to 4 times
       let res;
       for (let attempt = 1; attempt <= 4; attempt++) {
-        res = await fetch(`${API_URL}?${query}`);
-        if (res.status < 500) break;
+        try {
+          res = await fetch(`${API_URL}?${query}`);
+          if (res.status < 500) break;
+        } catch (err) {
+          if (attempt === 4) throw new Error("Couldn't reach NASA. Check your internet connection and try again.");
+        }
         await new Promise((r) => setTimeout(r, 800 * attempt));
       }
 
@@ -231,6 +235,7 @@
 
       let data = await res.json();
       if (Array.isArray(data)) data = data[0]; // "count" returns a list
+      if (isPlaceholder(data)) return data; // don't remember broken answers
       try { localStorage.setItem("apod:" + JSON.stringify({ date: data.date }), JSON.stringify(data)); } catch {}
       return data;
     }
@@ -239,11 +244,28 @@
       $("loader").classList.remove("hidden");
       try {
         const data = await fetchApod(params);
-        if (!latestDate && !params.date && !params.count) latestDate = data.date;
+        if (isPlaceholder(data)) {
+          throw new Error("NASA's picture service is having problems right now and is only sending its logo. Please try again later.");
+        }
         await render(data);
+        return true;
       } catch (err) {
         $("loader").classList.add("hidden");
         $("info").innerHTML = `<div class="card error">🛰️ ${err.message}</div>`;
+        return false;
+      }
+    }
+
+    // When NASA's API is broken it sends its logo instead of a real picture
+    const isPlaceholder = (data) => !!data.url && data.url.includes("nasa-logo");
+
+    // NASA's "latest picture" request (no date) often fails, so always ask for a specific day:
+    // today in US Eastern time (when NASA publishes), or yesterday if today's isn't out yet.
+    async function showLatest() {
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+      for (const date of [today, addDays(today, -1)]) {
+        latestDate = date;
+        if (await show({ date })) return;
       }
     }
 
@@ -333,7 +355,7 @@
     $("prevBtn").onclick = prev;
     $("nextBtn").onclick = next;
     $("randomBtn").onclick = random;
-    $("todayBtn").onclick = () => show({});
+    $("todayBtn").onclick = showLatest;
     $("datePicker").onchange = (e) => e.target.value && show({ date: e.target.value });
     $("frame").onclick = openViewer;
     $("viewer").onclick = () => $("viewer").classList.remove("open");
@@ -385,7 +407,7 @@
     requestAnimationFrame(animate);
 
     // ---------- Start with today's picture ----------
-    show({});
+    showLatest();
   </script>
 </body>
 </html>
